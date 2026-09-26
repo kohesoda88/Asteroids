@@ -49,4 +49,6 @@ npm run build    # dist/ に静的ファイルを出力
 `main` ブランチにプッシュすると `.github/workflows/deploy.yml` が動き、テストとビルドのあとに GitHub Pages へデプロイします。
 最初の1回だけ、リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしてください。
 
+このページには `noindex` を付けてあり、検索エンジンには載りにくくなっています。ただし GitHub Pages には閲覧者を制限する機能がないため、URLを知っていれば誰でも開けます。URLを推測されにくくするには、リポジトリ名を推測されにくいものに変えてください（URLは `https://<ユーザー名>.github.io/<リポジトリ名>/` になります）。
+
 設計の詳細は [docs/PLAN.md](docs/PLAN.md) にあります。
