@@ -26,7 +26,7 @@ interface Star {
 }
 
 const ROCK_COLOR = '#d8dde8';
-const STAR_COLORS = ['#232a3a', '#313b52', '#44506c'];
+const STAR_COLORS = ['#3a4458', '#525e78', '#707d9a'];
 const STARS_PER_VIEW = 150;
 // 画面中心から四隅までの距離。これより遠い物体は描かない
 const CULL_RADIUS = (VIEW_SIZE / 2) * Math.SQRT2;
