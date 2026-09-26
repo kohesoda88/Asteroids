@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>ASTEROIDS P2P</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- ゲーム中の上部ボタン -->
+    <div id="ingame" class="hidden">
+      <button id="btn-mute" class="icon-btn" aria-label="音声">🔊</button>
+      <button id="btn-quit" class="icon-btn" aria-label="終了">✕</button>
+    </div>
+
+    <!-- タッチ操作ボタン -->
+    <div id="touch" class="hidden">
+      <div class="pad left">
+        <button data-bit="1" aria-label="左回転">◀</button>
+        <button data-bit="2" aria-label="右回転">▶</button>
+      </div>
+      <div class="pad right">
+        <button data-bit="16" class="small" aria-label="ハイパースペース">HYP</button>
+        <button data-bit="4" aria-label="推進">▲</button>
+        <button data-bit="8" class="fire" aria-label="発射">●</button>
+      </div>
+    </div>
+
+    <!-- タイトル -->
+    <section id="screen-title" class="screen">
+      <div class="panel">
+        <h1>ASTEROIDS</h1>
+        <p class="sub">1〜4人・ブラウザ同士で直接つながる対戦</p>
+        <label class="field">名前 <input id="name" maxlength="12" autocomplete="off" /></label>
+        <div class="buttons">
+          <button id="btn-solo" class="primary">ソロプレイ</button>
+          <button id="btn-host">部屋を作る（ホスト）</button>
+          <button id="btn-join">部屋に参加（ゲスト）</button>
+        </div>
+        <label class="check"><input type="checkbox" id="stun" checked /> STUNサーバーを使う（インターネット越しで遊ぶときはON）</label>
+        <p id="title-msg" class="error"></p>
+        <details class="help">
+          <summary>操作方法・遊び方</summary>
+          <p>PC：←→（A/D）回転、↑（W）推進、Space 発射、↓（S）ハイパースペース</p>
+          <p>スマホ：画面下のボタンで操作（横向き推奨）</p>
+          <p>小惑星 大20／中50／小100点、UFO 大200／小1000点、他プレイヤー撃破 200点。対戦は制限時間内の得点で競います。</p>
+          <p>対戦はホストが「招待コード」を作り、ゲストが「返答コード」を返すと接続されます（LINEなどでコードを送り合ってください）。サーバーは使いません。回線によっては接続できない場合があります。</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ホストのロビー -->
+    <section id="screen-host" class="screen hidden">
+      <div class="panel wide">
+        <h2>部屋（ホスト）</h2>
+        <p class="sub">ゲストごとに「招待コード」を作って送り、返ってきた「返答コード」を貼り付けてください。</p>
+        <div class="row">
+          <label class="field">制限時間
+            <select id="duration">
+              <option value="60">1分</option>
+              <option value="120">2分</option>
+              <option value="180" selected>3分</option>
+              <option value="300">5分</option>
+            </select>
+          </label>
+        </div>
+        <div class="slot host-self"><span class="dot" style="--c: var(--p1)"></span><span id="host-self-name"></span>（あなた・ホスト）</div>
+        <div id="host-slots"></div>
+        <div class="buttons">
+          <button id="btn-start" class="primary">ゲーム開始</button>
+          <button id="btn-host-back">タイトルへ戻る</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ゲスト -->
+    <section id="screen-guest" class="screen hidden">
+      <div class="panel wide">
+        <h2>部屋に参加（ゲスト）</h2>
+        <div id="guest-body"></div>
+        <div class="buttons">
+          <button id="btn-guest-back">タイトルへ戻る</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 結果 -->
+    <section id="screen-result" class="screen hidden">
+      <div class="panel">
+        <h2 id="result-title">結果</h2>
+        <ol id="result-list" class="ranking"></ol>
+        <p id="result-msg" class="sub"></p>
+        <div class="buttons" id="result-buttons"></div>
+      </div>
+    </section>
+
+    <div id="portrait-hint">横向きにするとプレイしやすくなります</div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
