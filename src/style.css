@@ -371,24 +371,32 @@ button.primary {
   background: rgba(120, 180, 255, 0.45);
 }
 
-#portrait-hint {
-  display: none;
-}
+/* 縦持ち：正方形の画面を上に寄せ、音声・終了ボタンはその上、タッチボタンは下の余白に置く */
+@media (orientation: portrait) {
+  #ingame {
+    top: max(8px, env(safe-area-inset-top));
+    bottom: auto;
+  }
 
-@media (orientation: portrait) and (pointer: coarse) {
-  #portrait-hint.show {
-    display: block;
-    position: fixed;
-    top: 50px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(8, 12, 22, 0.85);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 13px;
-    color: var(--muted);
-    z-index: 6;
-    white-space: nowrap;
+  #touch .pad {
+    gap: 10px;
+  }
+
+  #touch button {
+    width: 62px;
+    height: 62px;
+    font-size: 22px;
+  }
+
+  #touch button.small {
+    width: 48px;
+    height: 48px;
+    font-size: 12px;
+    margin-bottom: 34px;
+  }
+
+  #touch button.fire {
+    width: 72px;
+    height: 72px;
   }
 }

@@ -20,11 +20,11 @@ describe('wrappedDist2', () => {
 });
 
 describe('createGame', () => {
-  it('ソロは残機3・第1ウェーブは大小惑星4個', () => {
+  it('ソロは残機3・第1ウェーブは大小惑星8個', () => {
     const s = createGame({ mode: 'solo', players: [0], seed: 1 });
     expect(s.ships).toHaveLength(1);
     expect(s.ships[0].lives).toBe(3);
-    expect(s.rocks).toHaveLength(4);
+    expect(s.rocks).toHaveLength(8);
     expect(s.rocks.every((r) => r.size === 3)).toBe(true);
   });
 
@@ -62,7 +62,7 @@ describe('小惑星', () => {
     s.ufoTimer = 1e9;
     for (let i = 0; i < C.TICK_RATE * (C.WAVE_DELAY + 0.5); i++) step(s, [0]);
     expect(s.wave).toBe(2);
-    expect(s.rocks).toHaveLength(6);
+    expect(s.rocks).toHaveLength(12);
   });
 });
 
@@ -185,5 +185,38 @@ describe('UFO', () => {
     step(s, [0, 0]);
     expect(s.ufo).toBeNull();
     expect(s.ships[1].score).toBe(ufo.small ? C.UFO_POINTS.small : C.UFO_POINTS.large);
+  });
+});
+
+describe('広いフィールド', () => {
+  it('フィールドは画面の面積4倍', () => {
+    expect(C.WORLD_W * C.WORLD_H).toBe(C.VIEW_SIZE * C.VIEW_SIZE * 4);
+  });
+
+  it('弾は画面の端まで（一辺の半分）で消える', () => {
+    const s = createGame({ mode: 'solo', players: [0], seed: 40 });
+    clearField(s);
+    const ship = s.ships[0];
+    step(s, [C.IN_FIRE]);
+    const b = s.bullets[0];
+    const sx = b.x;
+    const sy = b.y;
+    let last = { x: sx, y: sy };
+    while (s.bullets.some((x) => x.id === b.id)) {
+      last = { x: b.x, y: b.y };
+      step(s, [0]);
+    }
+    const dist = Math.sqrt(wrappedDist2(sx, sy, last.x, last.y));
+    expect(dist).toBeGreaterThan(C.BULLET_RANGE * 0.95);
+    expect(dist).toBeLessThanOrEqual(C.BULLET_RANGE);
+    expect(ship.alive).toBe(true);
+  });
+
+  it('小惑星は船から画面の外に出現する', () => {
+    const s = createGame({ mode: 'versus', players: [0, 1, 2, 3], seed: 41 });
+    for (const r of s.rocks) {
+      const near = Math.min(...s.ships.map((sh) => Math.sqrt(wrappedDist2(r.x, r.y, sh.x, sh.y))));
+      expect(near).toBeGreaterThan(C.VIEW_SIZE / 2);
+    }
   });
 });

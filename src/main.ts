@@ -21,7 +21,6 @@ function show(id: ScreenId): void {
   const inGame = id === null;
   $('ingame').classList.toggle('hidden', !inGame);
   $('touch').classList.toggle('hidden', !(inGame && isTouch));
-  $('portrait-hint').classList.toggle('show', inGame);
   input.enabled = inGame;
 }
 

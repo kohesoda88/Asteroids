@@ -11,10 +11,10 @@ export interface GameOptions {
 
 // 対戦時の出現位置（ワールドに対する割合）
 const SPAWN_POINTS: [number, number][] = [
-  [0.25, 0.3],
-  [0.75, 0.7],
-  [0.75, 0.3],
-  [0.25, 0.7],
+  [0.25, 0.25],
+  [0.75, 0.75],
+  [0.75, 0.25],
+  [0.25, 0.75],
 ];
 
 export function createGame(opts: GameOptions): GameState {
@@ -126,17 +126,25 @@ function spawnRock(state: GameState, size: number, x: number, y: number, baseVx 
 function startWave(state: GameState): void {
   state.wave++;
   const extra = state.mode === 'versus' ? state.ships.length - 1 : 0;
-  const count = Math.min(4 + (state.wave - 1) * 2 + extra, C.MAX_WAVE_ROCKS);
+  const count = Math.min((4 + (state.wave - 1) * 2 + extra) * C.ROCK_COUNT_SCALE, C.MAX_WAVE_ROCKS);
+  const clear2 = C.ROCK_SPAWN_CLEARANCE * C.ROCK_SPAWN_CLEARANCE;
   for (let i = 0; i < count; i++) {
-    // 船から離れた位置に出現させる
-    let x = 0;
-    let y = 0;
+    // 船から離れた（画面の外の）位置に出現させる。見つからなければ最も離れた候補を使う
+    let bestX = 0;
+    let bestY = 0;
+    let bestD = -1;
     for (let tries = 0; tries < 30; tries++) {
-      x = randRange(state.rng, 0, C.WORLD_W);
-      y = randRange(state.rng, 0, C.WORLD_H);
-      if (state.ships.every((s) => wrappedDist2(x, y, s.x, s.y) > 220 * 220)) break;
+      const x = randRange(state.rng, 0, C.WORLD_W);
+      const y = randRange(state.rng, 0, C.WORLD_H);
+      const d = Math.min(Infinity, ...state.ships.map((s) => wrappedDist2(x, y, s.x, s.y)));
+      if (d > bestD) {
+        bestD = d;
+        bestX = x;
+        bestY = y;
+      }
+      if (d > clear2) break;
     }
-    spawnRock(state, 3, x, y);
+    spawnRock(state, 3, bestX, bestY);
   }
 }
 
@@ -369,7 +377,7 @@ function fireUfo(state: GameState, ufo: Ufo): void {
     y: ufo.y,
     vx: Math.cos(dir) * C.UFO_BULLET_SPEED,
     vy: Math.sin(dir) * C.UFO_BULLET_SPEED,
-    life: C.BULLET_LIFE * 1.3,
+    life: C.UFO_BULLET_LIFE,
   });
   state.events.push({ k: 'fire', o: -1 });
 }
