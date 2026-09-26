@@ -344,6 +344,16 @@ function renderHostSlots(): void {
   start.textContent = n === 0 ? 'ゲーム開始（1人で練習）' : `ゲーム開始（${n + 1}人）`;
 }
 
+function reportHtml(report: string): string {
+  if (!report) return '';
+  return `<details class="report"><summary>詳しい診断情報</summary><pre>${esc(report)}</pre>
+    <div class="buttons inline"><button class="act-copy-report">診断情報をコピー</button></div></details>`;
+}
+
+function bindReport(el: HTMLElement, report: string): void {
+  el.querySelector('.act-copy-report')?.addEventListener('click', (e) => void copyString(report, e.currentTarget as HTMLButtonElement));
+}
+
 function slotHtml(g: GuestSlot): string {
   const color = PLAYER_COLORS[g.slot];
   const head = (status: string) =>
@@ -351,7 +361,7 @@ function slotHtml(g: GuestSlot): string {
   const err = g.error ? `<p class="error">${esc(g.error)}</p>` : '';
   switch (g.status) {
     case 'empty':
-      return `${head('空き')}${err}${g.error ? '<p class="diag"></p>' : ''}<div class="buttons inline"><button class="act-invite">招待コードを作成</button></div>`;
+      return `${head('空き')}${err}${g.error ? '<p class="diag"></p>' : ''}${reportHtml(g.report)}<div class="buttons inline"><button class="act-invite">招待コードを作成</button></div>`;
     case 'inviting':
       return `${head('招待コードを作成中…（数秒かかります）')}`;
     case 'waitingAnswer':
@@ -376,6 +386,7 @@ function slotHtml(g: GuestSlot): string {
 
 function bindSlot(el: HTMLElement, g: GuestSlot): void {
   const on = (cls: string, fn: () => void) => el.querySelector(`.${cls}`)?.addEventListener('click', fn);
+  bindReport(el, g.report);
   on('act-invite', () => void host?.createInvite(g.slot));
   on('act-cancel', () => host?.cancel(g.slot));
   on('act-copy', () => copyText(el.querySelector<HTMLTextAreaElement>('.offer')!, el.querySelector<HTMLButtonElement>('.act-copy')!));
@@ -497,8 +508,9 @@ function renderGuest(): void {
     case 'closed':
       body.innerHTML = `<p class="sub">ホストの画面のQRコードをスマホのカメラで読み取ると、この画面が自動で進みます。</p>
         <div class="label sub">① ホストから届いた招待コードを貼り付ける</div>
-        <textarea class="invite" placeholder="AST1O. から始まるコード"></textarea>${err}${g.error ? diag : ''}
+        <textarea class="invite" placeholder="AST1O. から始まるコード"></textarea>${err}${g.error ? diag : ''}${reportHtml(g.report)}
         <div class="buttons inline"><button class="act-answer primary">返答コードを作成</button></div>`;
+      bindReport(body, g.report);
       body.querySelector('.act-answer')!.addEventListener('click', () => {
         const code = body.querySelector<HTMLTextAreaElement>('.invite')!.value;
         if (code.trim()) void g.createAnswer(code);

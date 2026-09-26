@@ -14,6 +14,7 @@ export interface GuestSlot {
   offerCode: string;
   error: string;
   diag: string; // 接続診断の表示
+  report: string; // 失敗時の詳しい診断（コピー用）
 }
 
 export function diagText(link: PeerLink): string {
@@ -32,11 +33,11 @@ export class HostSession {
     private useStun: boolean,
   ) {
     for (let slot = 1; slot < MAX_PLAYERS; slot++) {
-      this.guests.push({ slot, status: 'empty', link: null, name: '', input: 0, offerCode: '', error: '', diag: '' });
+      this.guests.push({ slot, status: 'empty', link: null, name: '', input: 0, offerCode: '', error: '', diag: '', report: '' });
     }
   }
 
-  private reset(g: GuestSlot, error = '', diag = ''): void {
+  private reset(g: GuestSlot, error = '', diag = '', report = ''): void {
     const link = g.link;
     g.link = null; // 先に外してから閉じる（onClose で再度 reset されないように）
     link?.close();
@@ -46,6 +47,7 @@ export class HostSession {
     g.offerCode = '';
     g.error = error;
     g.diag = diag;
+    g.report = report;
   }
 
   async createInvite(slot: number): Promise<void> {
@@ -63,7 +65,7 @@ export class HostSession {
       if (g.link !== link) return;
       const wasConnected = g.status === 'connected';
       const diag = diagText(link);
-      this.reset(g, wasConnected ? `${g.name || 'ゲスト'} との接続が切れました` : `接続できませんでした。${link.diagnosis()}`, diag);
+      this.reset(g, wasConnected ? `${g.name || 'ゲスト'} との接続が切れました` : `接続できませんでした。${link.diagnosis()}`, diag, link.report());
       this.broadcastLobby();
       this.onChange();
     };

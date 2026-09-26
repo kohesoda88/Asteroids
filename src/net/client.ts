@@ -14,6 +14,7 @@ export class GuestSession {
   answerCode = '';
   error = '';
   diag = '';
+  report = '';
   private link: PeerLink | null = null;
 
   onChange: () => void = () => {};
@@ -32,6 +33,7 @@ export class GuestSession {
     const link = new PeerLink(this.useStun);
     this.link = link;
     this.error = '';
+    this.report = '';
     this.phase = 'answering';
     this.onChange();
     link.onReliable = (msg) => {
@@ -68,7 +70,10 @@ export class GuestSession {
     link.onClose = () => {
       if (this.link !== link) return;
       this.diag = diagText(link);
-      if (this.phase === 'waitingConnect') this.error = `接続できませんでした。${link.diagnosis()}`;
+      if (this.phase === 'waitingConnect') {
+        this.error = `接続できませんでした。${link.diagnosis()}`;
+        this.report = link.report();
+      }
       this.phase = 'closed';
       this.onChange();
       this.onClosed();

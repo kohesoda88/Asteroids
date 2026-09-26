@@ -50,6 +50,25 @@ export function formatCandidates(s: CandidateSummary | null): string {
   return `LAN ${s.host} / グローバル ${s.srflx}`;
 }
 
+/** アドレスの種類だけを返す（IPアドレスそのものは出さない） */
+function addrKind(addr: string): string {
+  if (addr.endsWith('.local')) return 'mDNS';
+  if (addr.includes(':')) return addr.toLowerCase().startsWith('fe80') ? 'IPv6(リンクローカル)' : 'IPv6';
+  const p = addr.split('.').map(Number);
+  if (p.length !== 4) return '不明';
+  if (p[0] === 10 || (p[0] === 172 && p[1] >= 16 && p[1] <= 31) || (p[0] === 192 && p[1] === 168)) return 'IPv4(プライベート)';
+  if (p[0] === 100 && p[1] >= 64 && p[1] <= 127) return 'IPv4(CGNAT)';
+  if (p[0] === 169 && p[1] === 254) return 'IPv4(リンクローカル)';
+  return 'IPv4(グローバル)';
+}
+
+/** SDP の候補を「種類/プロトコル/アドレスの種類」の一覧にする（診断用） */
+export function describeCandidates(sdp: string): string {
+  const out: string[] = [];
+  for (const m of sdp.matchAll(/^a=candidate:\S+ \d+ (\w+) \d+ (\S+) \d+ typ (\w+)/gm)) out.push(`${m[3]}/${m[1]}/${addrKind(m[2])}`);
+  return out.length ? out.join(', ') : '(候補なし)';
+}
+
 /** WebRTC 接続1本分。信頼性あり/なしの2つの DataChannel を持つ */
 export class PeerLink {
   readonly pc: RTCPeerConnection;
@@ -67,8 +86,17 @@ export class PeerLink {
   onStateChange: () => void = () => {};
   localCandidates: CandidateSummary | null = null;
   remoteCandidates: CandidateSummary | null = null;
+  private readonly t0 = performance.now();
+  private log: string[] = [];
+  private remoteSdp = '';
+  private statsText = '';
+  private failing = false;
 
-  constructor(useStun: boolean) {
+  private note(s: string): void {
+    this.log.push(`+${((performance.now() - this.t0) / 1000).toFixed(1)}s ${s}`);
+  }
+
+  constructor(private useStun: boolean) {
     this.pc = new RTCPeerConnection({ iceServers: useStun ? STUN_SERVERS : [] });
     // negotiated: true で両側が同じ id のチャネルを作る（ondatachannel 不要）
     this.rel = this.pc.createDataChannel('rel', { negotiated: true, id: 0, ordered: true });
@@ -91,14 +119,23 @@ export class PeerLink {
       this.onUnreliable(JSON.parse(e.data as string) as UnreliableMsg);
     };
     this.pc.onconnectionstatechange = () => {
+      this.note(`connection=${this.pc.connectionState}`);
       this.onStateChange();
-      if (this.pc.connectionState === 'failed' || this.pc.connectionState === 'closed') this.close();
+      if (this.pc.connectionState === 'failed') void this.fail();
+      else if (this.pc.connectionState === 'closed') this.close();
     };
     this.pc.oniceconnectionstatechange = () => {
+      this.note(`ice=${this.pc.iceConnectionState}`);
       this.onStateChange();
       // connectionState 非対応のブラウザ向け
-      if (this.pc.iceConnectionState === 'failed') this.close();
+      if (this.pc.iceConnectionState === 'failed') void this.fail();
     };
+    this.pc.onicegatheringstatechange = () => this.note(`gathering=${this.pc.iceGatheringState}`);
+    this.pc.addEventListener('icecandidateerror', (e) => {
+      const ev = e as RTCPeerConnectionIceErrorEvent;
+      this.note(`候補エラー ${ev.errorCode} ${ev.url ?? ''}`);
+    });
+    this.rel.addEventListener('open', () => this.note('DataChannel open'));
   }
 
   /** 接続状態を表示用の文字列にする */
@@ -125,6 +162,39 @@ export class PeerLink {
       return `${who}でグローバルアドレスが取れていません。STUNをONにして作り直すか、同じWi-Fiにつないで試してください。`;
     }
     return '両方ともグローバルアドレスは取れていますが、直接つながりませんでした。回線（NAT）の組み合わせが原因の可能性があります。片方をスマホのテザリングや別のWi-Fiに変えて試してください。';
+  }
+
+  /** 失敗時：閉じる前に経路確認の統計を記録する */
+  private async fail(): Promise<void> {
+    if (this.failing || this.closed) return;
+    this.failing = true;
+    try {
+      const stats = await this.pc.getStats();
+      const pairs: Record<string, number> = {};
+      const remote: string[] = [];
+      stats.forEach((r) => {
+        if (r.type === 'candidate-pair') pairs[r.state] = (pairs[r.state] ?? 0) + 1;
+        if (r.type === 'remote-candidate') remote.push(`${r.candidateType}${r.address || r.ip ? '' : '(未解決)'}`);
+      });
+      this.statsText = `経路ペア: ${JSON.stringify(pairs)} / 相手候補: ${remote.join(', ') || 'なし'}`;
+    } catch (e) {
+      this.statsText = `統計取得失敗: ${(e as Error).message}`;
+    }
+    this.close();
+  }
+
+  /** 利用者がコピーして送れる診断レポート（IPアドレスは含めない） */
+  report(): string {
+    return [
+      `ブラウザ: ${navigator.userAgent}`,
+      `STUN: ${this.useStun ? 'ON' : 'OFF'}`,
+      `こちらの候補: ${this.pc.localDescription ? describeCandidates(this.pc.localDescription.sdp) : '—'}`,
+      `相手の候補: ${this.remoteSdp ? describeCandidates(this.remoteSdp) : '—'}`,
+      `記録: ${this.log.join(' | ')}`,
+      this.statsText,
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 
   get isOpen(): boolean {
@@ -170,6 +240,8 @@ export class PeerLink {
 
   async acceptAnswerCode(code: string): Promise<void> {
     const sdp = await decodeSdp(ANSWER_PREFIX, code);
+    this.remoteSdp = sdp;
+    this.note('返答コード受付');
     this.remoteCandidates = summarizeCandidates(sdp);
     await this.pc.setRemoteDescription({ type: 'answer', sdp });
   }
@@ -177,6 +249,8 @@ export class PeerLink {
   // ---- ゲスト側 ----
   async createAnswerCode(offerCode: string): Promise<string> {
     const sdp = await decodeSdp(OFFER_PREFIX, offerCode);
+    this.remoteSdp = sdp;
+    this.note('招待コード受付');
     this.remoteCandidates = summarizeCandidates(sdp);
     await this.pc.setRemoteDescription({ type: 'offer', sdp });
     await this.pc.setLocalDescription(await this.pc.createAnswer());
