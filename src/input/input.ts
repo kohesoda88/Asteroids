@@ -13,14 +13,31 @@ const KEY_MAP: Record<string, number> = {
   KeyS: IN_HYPER,
 };
 
+const HOLD_MS = 500; // この時間 fire ボタンを押し続けると連射ホールド
+
 /** キーボードとタッチボタンの入力をまとめて入力ビットにする */
 export class Input {
   private keys = 0;
   private touch = new Map<number, number>(); // pointerId -> ビット
   private latched = 0; // 次の読み取りまで保持する（1フレーム未満の短い押下を取りこぼさない）
-  enabled = false;
+  private autoFire = false; // スマホ：fire ボタン長押しで連射をホールド
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  private _enabled = false;
 
-  constructor(touchRoot: HTMLElement) {
+  get enabled(): boolean {
+    return this._enabled;
+  }
+
+  set enabled(v: boolean) {
+    this._enabled = v;
+    // ゲーム外に出たら連射ホールドを解除する
+    if (!v && this.autoFire) {
+      this.autoFire = false;
+      this.refreshButtons(this.touchRoot);
+    }
+  }
+
+  constructor(private touchRoot: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       const bit = KEY_MAP[e.code];
       if (bit === undefined || !this.enabled) return;
@@ -57,6 +74,7 @@ export class Input {
       (e.target as Element).setPointerCapture?.(e.pointerId);
       this.touch.set(e.pointerId, bit);
       this.latched |= bit;
+      if (bit === IN_FIRE) this.onFireDown(e.pointerId);
       this.refreshButtons(touchRoot);
     });
     touchRoot.addEventListener('pointermove', update);
@@ -69,10 +87,30 @@ export class Input {
     touchRoot.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 
+  /** 連射ホールド：OFF のとき長押しで ON、ON のときは押した時点で OFF */
+  private onFireDown(pointerId: number): void {
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = null;
+    if (this.autoFire) {
+      this.autoFire = false;
+      return;
+    }
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      if (this.touch.get(pointerId) === IN_FIRE && this._enabled) {
+        this.autoFire = true;
+        navigator.vibrate?.(30);
+        this.refreshButtons(this.touchRoot);
+      }
+    }, HOLD_MS);
+  }
+
   private refreshButtons(root: HTMLElement): void {
     const active = this.touchBits();
     root.querySelectorAll<HTMLElement>('[data-bit]').forEach((b) => {
-      b.classList.toggle('active', (active & Number(b.dataset.bit)) !== 0);
+      const bit = Number(b.dataset.bit);
+      b.classList.toggle('active', (active & bit) !== 0);
+      if (bit === IN_FIRE) b.classList.toggle('latched', this.autoFire);
     });
   }
 
@@ -83,7 +121,7 @@ export class Input {
   }
 
   bits(): number {
-    const bits = this.keys | this.touchBits() | this.latched;
+    const bits = this.keys | this.touchBits() | this.latched | (this.autoFire ? IN_FIRE : 0);
     this.latched = 0;
     return this.enabled ? bits : 0;
   }
