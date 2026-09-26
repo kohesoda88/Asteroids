@@ -181,6 +181,42 @@ button.primary {
   min-height: 1em;
 }
 
+.qr {
+  display: block;
+  width: min(280px, 100%);
+  margin: 6px 0;
+  background: #fff;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.qr svg {
+  width: 100%;
+  height: auto;
+  shape-rendering: crispEdges;
+}
+
+#scanner {
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+#scanner video {
+  width: 100%;
+  max-height: 60vh;
+  background: #000;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.diag {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: 'Courier New', monospace;
+  margin: 6px 0;
+  word-break: break-all;
+}
+
 .help {
   font-size: 13px;
   color: var(--muted);

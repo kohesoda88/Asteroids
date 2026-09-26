@@ -28,6 +28,28 @@ function waitIceGathering(pc: RTCPeerConnection): Promise<void> {
   });
 }
 
+export interface CandidateSummary {
+  host: number; // 端末自身のアドレス（同じLAN内で使える）
+  srflx: number; // STUNで分かったグローバルアドレス（インターネット越しに必要）
+  relay: number;
+}
+
+/** SDP に含まれる ICE 候補の種類を数える（接続診断用） */
+export function summarizeCandidates(sdp: string): CandidateSummary {
+  const s: CandidateSummary = { host: 0, srflx: 0, relay: 0 };
+  for (const m of sdp.matchAll(/^a=candidate:.* typ (host|srflx|prflx|relay)/gm)) {
+    if (m[1] === 'host') s.host++;
+    else if (m[1] === 'relay') s.relay++;
+    else s.srflx++;
+  }
+  return s;
+}
+
+export function formatCandidates(s: CandidateSummary | null): string {
+  if (!s) return '—';
+  return `LAN ${s.host} / グローバル ${s.srflx}`;
+}
+
 /** WebRTC 接続1本分。信頼性あり/なしの2つの DataChannel を持つ */
 export class PeerLink {
   readonly pc: RTCPeerConnection;
@@ -42,6 +64,9 @@ export class PeerLink {
   onReliable: (msg: ReliableMsg) => void = () => {};
   onUnreliable: (msg: UnreliableMsg) => void = () => {};
   onClose: () => void = () => {};
+  onStateChange: () => void = () => {};
+  localCandidates: CandidateSummary | null = null;
+  remoteCandidates: CandidateSummary | null = null;
 
   constructor(useStun: boolean) {
     this.pc = new RTCPeerConnection({ iceServers: useStun ? STUN_SERVERS : [] });
@@ -66,8 +91,40 @@ export class PeerLink {
       this.onUnreliable(JSON.parse(e.data as string) as UnreliableMsg);
     };
     this.pc.onconnectionstatechange = () => {
+      this.onStateChange();
       if (this.pc.connectionState === 'failed' || this.pc.connectionState === 'closed') this.close();
     };
+    this.pc.oniceconnectionstatechange = () => {
+      this.onStateChange();
+      // connectionState 非対応のブラウザ向け
+      if (this.pc.iceConnectionState === 'failed') this.close();
+    };
+  }
+
+  /** 接続状態を表示用の文字列にする */
+  get stateText(): string {
+    const map: Record<string, string> = {
+      new: '準備中',
+      checking: '経路を確認中',
+      connected: '接続',
+      completed: '接続',
+      disconnected: '一時的に切断',
+      failed: '失敗',
+      closed: '終了',
+    };
+    return map[this.pc.iceConnectionState] ?? this.pc.iceConnectionState;
+  }
+
+  /** 接続できなかったときの原因の見立て */
+  diagnosis(): string {
+    const l = this.localCandidates;
+    const r = this.remoteCandidates;
+    if (!l || !r) return '';
+    if (l.srflx === 0 || r.srflx === 0) {
+      const who = l.srflx === 0 && r.srflx === 0 ? '両方' : l.srflx === 0 ? 'こちら側' : '相手側';
+      return `${who}でグローバルアドレスが取れていません。STUNをONにして作り直すか、同じWi-Fiにつないで試してください。`;
+    }
+    return '両方ともグローバルアドレスは取れていますが、直接つながりませんでした。回線（NAT）の組み合わせが原因の可能性があります。片方をスマホのテザリングや別のWi-Fiに変えて試してください。';
   }
 
   get isOpen(): boolean {
@@ -107,20 +164,24 @@ export class PeerLink {
   async createOfferCode(): Promise<string> {
     await this.pc.setLocalDescription(await this.pc.createOffer());
     await waitIceGathering(this.pc);
+    this.localCandidates = summarizeCandidates(this.pc.localDescription!.sdp);
     return encodeSdp(OFFER_PREFIX, this.pc.localDescription!.sdp);
   }
 
   async acceptAnswerCode(code: string): Promise<void> {
     const sdp = await decodeSdp(ANSWER_PREFIX, code);
+    this.remoteCandidates = summarizeCandidates(sdp);
     await this.pc.setRemoteDescription({ type: 'answer', sdp });
   }
 
   // ---- ゲスト側 ----
   async createAnswerCode(offerCode: string): Promise<string> {
     const sdp = await decodeSdp(OFFER_PREFIX, offerCode);
+    this.remoteCandidates = summarizeCandidates(sdp);
     await this.pc.setRemoteDescription({ type: 'offer', sdp });
     await this.pc.setLocalDescription(await this.pc.createAnswer());
     await waitIceGathering(this.pc);
+    this.localCandidates = summarizeCandidates(this.pc.localDescription!.sdp);
     return encodeSdp(ANSWER_PREFIX, this.pc.localDescription!.sdp);
   }
 }

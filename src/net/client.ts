@@ -1,5 +1,6 @@
 import { decodeView, type LobbyPlayer } from './protocol';
 import { PeerLink } from './peer';
+import { diagText } from './host';
 import type { View } from '../core/view';
 
 export type GuestPhase = 'idle' | 'answering' | 'waitingConnect' | 'lobby' | 'playing' | 'closed';
@@ -12,6 +13,7 @@ export class GuestSession {
   durationSec = 0;
   answerCode = '';
   error = '';
+  diag = '';
   private link: PeerLink | null = null;
 
   onChange: () => void = () => {};
@@ -21,7 +23,7 @@ export class GuestSession {
   onClosed: () => void = () => {};
 
   constructor(
-    private name: string,
+    public name: string,
     private useStun: boolean,
   ) {}
 
@@ -58,15 +60,24 @@ export class GuestSession {
     link.onUnreliable = (msg) => {
       if (msg.t === 's') this.onSnapshot(decodeView(msg.d));
     };
+    link.onStateChange = () => {
+      if (this.link !== link) return;
+      this.diag = diagText(link);
+      this.onChange();
+    };
     link.onClose = () => {
       if (this.link !== link) return;
+      this.diag = diagText(link);
+      if (this.phase === 'waitingConnect') this.error = `接続できませんでした。${link.diagnosis()}`;
       this.phase = 'closed';
       this.onChange();
       this.onClosed();
     };
+    // 名前は接続した時点のものを送る（待っている間に変更できる）
     link.opened.then(() => link.sendReliable({ t: 'hello', name: this.name }));
     try {
       this.answerCode = await link.createAnswerCode(offerCode);
+      this.diag = diagText(link);
       if (this.link === link && this.phase === 'answering') this.phase = 'waitingConnect';
     } catch (e) {
       this.link = null;

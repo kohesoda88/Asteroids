@@ -82,6 +82,7 @@
     <section id="screen-guest" class="screen hidden">
       <div class="panel wide">
         <h2>部屋に参加（ゲスト）</h2>
+        <label class="field">名前 <input id="guest-name" maxlength="12" autocomplete="off" /></label>
         <div id="guest-body"></div>
         <div class="buttons">
           <button id="btn-guest-back">タイトルへ戻る</button>
@@ -98,6 +99,16 @@
         <div class="buttons" id="result-buttons"></div>
       </div>
     </section>
+
+    <!-- QR 読み取り -->
+    <div id="scanner" class="screen hidden">
+      <div class="panel">
+        <h2>QRコードを読み取る</h2>
+        <video playsinline muted></video>
+        <p class="scan-msg sub"></p>
+        <div class="buttons"><button class="scan-close">閉じる</button></div>
+      </div>
+    </div>
 
     <div id="portrait-hint">横向きにするとプレイしやすくなります</div>
 

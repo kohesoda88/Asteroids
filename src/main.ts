@@ -9,6 +9,7 @@ import { GuestSession } from './net/client';
 import { HostSession, type GuestSlot } from './net/host';
 import type { LobbyPlayer } from './net/protocol';
 import { Renderer } from './render/renderer';
+import { canScan, joinUrl, qrSvg, scanQr, takeJoinCodeFromUrl } from './ui/qr';
 
 // ---------- DOM ----------
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -325,13 +326,17 @@ function renderHostSlots(): void {
     }
     // 入力中のテキストを消さないよう、状態が変わったときだけ作り直す
     const key = `${g.status}|${g.error}|${g.name}|${g.offerCode.length}`;
-    if (slotRenderKey.get(g.slot) === key) continue;
-    slotRenderKey.set(g.slot, key);
-    const prevAnswer = el.querySelector<HTMLTextAreaElement>('.answer')?.value ?? '';
-    el.innerHTML = slotHtml(g);
-    const answer = el.querySelector<HTMLTextAreaElement>('.answer');
-    if (answer) answer.value = prevAnswer;
-    bindSlot(el, g);
+    if (slotRenderKey.get(g.slot) !== key) {
+      slotRenderKey.set(g.slot, key);
+      const prevAnswer = el.querySelector<HTMLTextAreaElement>('.answer')?.value ?? '';
+      el.innerHTML = slotHtml(g);
+      const answer = el.querySelector<HTMLTextAreaElement>('.answer');
+      if (answer) answer.value = prevAnswer;
+      bindSlot(el, g);
+    }
+    // 診断表示は作り直さずに更新（入力中のテキストやフォーカスを保つ）
+    const diag = el.querySelector<HTMLElement>('.diag');
+    if (diag) diag.textContent = g.diag;
   }
   const n = host.connected().length;
   const start = $<HTMLButtonElement>('btn-start');
@@ -346,20 +351,24 @@ function slotHtml(g: GuestSlot): string {
   const err = g.error ? `<p class="error">${esc(g.error)}</p>` : '';
   switch (g.status) {
     case 'empty':
-      return `${head('空き')}${err}<div class="buttons inline"><button class="act-invite">招待コードを作成</button></div>`;
+      return `${head('空き')}${err}${g.error ? '<p class="diag"></p>' : ''}<div class="buttons inline"><button class="act-invite">招待コードを作成</button></div>`;
     case 'inviting':
       return `${head('招待コードを作成中…（数秒かかります）')}`;
     case 'waitingAnswer':
       return `${head('返答待ち')}
-        <div class="label">① この招待コードをゲストに送る</div>
+        <div class="label">① ゲストのスマホのカメラでこのQRコードを読み取ってもらう</div>
+        <div class="qr">${qrSvg(joinUrl(g.offerCode))}</div>
+        <div class="label">QRを使えないときは、この招待コード（または参加URL）を送る</div>
         <textarea readonly class="offer">${esc(g.offerCode)}</textarea>
-        <div class="buttons inline"><button class="act-copy">コピー</button>${canShare ? '<button class="act-share">共有</button>' : ''}</div>
-        <div class="label">② ゲストから届いた返答コードを貼り付ける</div>
+        <div class="buttons inline"><button class="act-copy">コードをコピー</button><button class="act-copy-url">参加URLをコピー</button>${canShare ? '<button class="act-share">共有</button>' : ''}</div>
+        <div class="label">② ゲストの画面に出た返答コードを読み取る／貼り付ける</div>
+        ${canScan() ? '<div class="buttons inline"><button class="act-scan primary">返答QRを読み取る</button></div>' : ''}
         <textarea class="answer" placeholder="AST1A. から始まるコード"></textarea>
         ${err}
+        <p class="diag"></p>
         <div class="buttons inline"><button class="act-accept primary">接続</button><button class="act-cancel">キャンセル</button></div>`;
     case 'connecting':
-      return `${head('接続中…')}${err}<div class="buttons inline"><button class="act-cancel">キャンセル</button></div>`;
+      return `${head('接続中…（最大30秒ほどかかります）')}${err}<p class="diag"></p><div class="buttons inline"><button class="act-cancel">キャンセル</button></div>`;
     case 'connected':
       return `${head(`✔ ${esc(g.name || '（名前待ち）')} 接続済み`)}<div class="buttons inline"><button class="act-cancel">切断</button></div>`;
   }
@@ -370,7 +379,15 @@ function bindSlot(el: HTMLElement, g: GuestSlot): void {
   on('act-invite', () => void host?.createInvite(g.slot));
   on('act-cancel', () => host?.cancel(g.slot));
   on('act-copy', () => copyText(el.querySelector<HTMLTextAreaElement>('.offer')!, el.querySelector<HTMLButtonElement>('.act-copy')!));
-  on('act-share', () => void navigator.share?.({ text: g.offerCode }).catch(() => {}));
+  on('act-copy-url', () => copyString(joinUrl(g.offerCode), el.querySelector<HTMLButtonElement>('.act-copy-url')!));
+  on('act-share', () => void navigator.share?.({ url: joinUrl(g.offerCode) }).catch(() => {}));
+  on('act-scan', async () => {
+    const text = await scanQr($('scanner'));
+    if (!text) return;
+    const area = el.querySelector<HTMLTextAreaElement>('.answer');
+    if (area) area.value = text;
+    void host?.acceptAnswer(g.slot, text);
+  });
   on('act-accept', () => {
     const code = el.querySelector<HTMLTextAreaElement>('.answer')!.value;
     if (code.trim()) void host?.acceptAnswer(g.slot, code);
@@ -384,6 +401,19 @@ async function copyText(area: HTMLTextAreaElement, btn: HTMLButtonElement): Prom
     area.select();
     document.execCommand('copy');
   }
+  flash(btn);
+}
+
+async function copyString(text: string, btn: HTMLButtonElement): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    flash(btn);
+  } catch {
+    btn.textContent = 'コピーできませんでした';
+  }
+}
+
+function flash(btn: HTMLButtonElement): void {
   const old = btn.textContent;
   btn.textContent = 'コピーしました';
   setTimeout(() => (btn.textContent = old), 1500);
@@ -420,8 +450,8 @@ function startHostGame(): void {
 }
 
 // ---------- ゲスト ----------
-function openGuest(): void {
-  if (!checkWebRtc()) return;
+function openGuest(): GuestSession | null {
+  if (!checkWebRtc()) return null;
   save('ast.name', playerName());
   guest = new GuestSession(playerName(), stunInput.checked);
   const g = guest;
@@ -439,10 +469,17 @@ function openGuest(): void {
   };
   g.onClosed = () => {
     if (guest !== g) return;
+    // 一度も接続できなかったときは、原因を表示したまま参加画面に留まる
+    if (g.players.length === 0) {
+      if (mode.kind !== 'guest') renderGuest();
+      return;
+    }
     toTitle('ホストとの接続が切れました。');
   };
+  $<HTMLInputElement>('guest-name').value = playerName();
   renderGuest();
   show('screen-guest');
+  return g;
 }
 
 function leaveGuest(): void {
@@ -454,11 +491,13 @@ function renderGuest(): void {
   if (!g) return;
   const body = $('guest-body');
   const err = g.error ? `<p class="error">${esc(g.error)}</p>` : '';
+  const diag = g.diag ? `<p class="diag">${esc(g.diag)}</p>` : '';
   switch (g.phase) {
     case 'idle':
     case 'closed':
-      body.innerHTML = `<div class="label sub">① ホストから届いた招待コードを貼り付ける</div>
-        <textarea class="invite" placeholder="AST1O. から始まるコード"></textarea>${err}
+      body.innerHTML = `<p class="sub">ホストの画面のQRコードをスマホのカメラで読み取ると、この画面が自動で進みます。</p>
+        <div class="label sub">① ホストから届いた招待コードを貼り付ける</div>
+        <textarea class="invite" placeholder="AST1O. から始まるコード"></textarea>${err}${g.error ? diag : ''}
         <div class="buttons inline"><button class="act-answer primary">返答コードを作成</button></div>`;
       body.querySelector('.act-answer')!.addEventListener('click', () => {
         const code = body.querySelector<HTMLTextAreaElement>('.invite')!.value;
@@ -469,10 +508,12 @@ function renderGuest(): void {
       body.innerHTML = `<p class="sub">返答コードを作成中…（数秒かかります）</p>`;
       break;
     case 'waitingConnect':
-      body.innerHTML = `<div class="label sub">② この返答コードをホストに送る</div>
+      body.innerHTML = `<div class="label sub">② ホストにこのQRコードを読み取ってもらう</div>
+        <div class="qr">${qrSvg(g.answerCode)}</div>
+        <div class="label sub">読み取れないときは、この返答コードをホストに送る</div>
         <textarea readonly class="answer">${esc(g.answerCode)}</textarea>
         <div class="buttons inline"><button class="act-copy">コピー</button>${canShare ? '<button class="act-share">共有</button>' : ''}</div>
-        <p class="sub">ホストが返答コードを貼り付けると接続されます。接続を待っています…</p>`;
+        <p class="sub">ホストがQRを読み取るか返答コードを貼り付けると接続されます。接続を待っています…（最大30秒ほど）</p>${diag}`;
       body.querySelector('.act-copy')!.addEventListener('click', (e) =>
         copyText(body.querySelector<HTMLTextAreaElement>('.answer')!, e.currentTarget as HTMLButtonElement),
       );
@@ -501,7 +542,13 @@ function startGuestGame(g: GuestSession, players: LobbyPlayer[]): void {
 // ---------- ボタン ----------
 $('btn-solo').addEventListener('click', startSolo);
 $('btn-host').addEventListener('click', openHost);
-$('btn-join').addEventListener('click', openGuest);
+$('btn-join').addEventListener('click', () => openGuest());
+$('guest-name').addEventListener('input', () => {
+  const v = $<HTMLInputElement>('guest-name').value.trim().slice(0, 12);
+  nameInput.value = v;
+  save('ast.name', v);
+  if (guest) guest.name = v || 'Player';
+});
 $('btn-start').addEventListener('click', startHostGame);
 $('btn-host-back').addEventListener('click', () => toTitle());
 $('btn-guest-back').addEventListener('click', () => toTitle());
@@ -523,5 +570,18 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
-show('screen-title');
+// QR コード（参加URL）から開かれたときは、そのまま参加手続きを始める
+function joinFromUrl(): boolean {
+  const code = takeJoinCodeFromUrl();
+  if (!code || typeof RTCPeerConnection === 'undefined') return false;
+  if (mode.kind !== 'menu') return true; // ゲーム中は無視
+  host?.closeAll();
+  host = null;
+  guest?.close();
+  void openGuest()?.createAnswer(code);
+  return true;
+}
+// ページを開いたまま参加URLを開き直した場合
+window.addEventListener('hashchange', () => joinFromUrl());
+if (!joinFromUrl()) show('screen-title');
 requestAnimationFrame(frame);

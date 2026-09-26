@@ -1,10 +1,13 @@
 // SDP（offer/answer）を手で受け渡しやすい短い文字列に変換する。
-// 形式: "<接頭辞><Base64URL>"。接頭辞で招待コード/返答コードを区別する。
+// 形式: "<接頭辞><形式1文字><Base64URL>"。接頭辞で招待コード/返答コードを区別する。
+
+import { compactSdp, expandSdp } from './compactSdp';
 
 export const OFFER_PREFIX = 'AST1O.';
 export const ANSWER_PREFIX = 'AST1A.';
 const RAW_MARK = 'r'; // 非圧縮
 const DEFLATE_MARK = 'z'; // deflate-raw 圧縮
+const COMPACT_MARK = 'c'; // 必要な情報だけのバイナリ（QR 向けに短い）
 
 function toBase64Url(bytes: Uint8Array): string {
   let bin = '';
@@ -30,6 +33,8 @@ function hasCompression(): boolean {
 }
 
 export async function encodeSdp(prefix: string, sdp: string): Promise<string> {
+  const compact = compactSdp(sdp);
+  if (compact) return prefix + COMPACT_MARK + toBase64Url(compact);
   const bytes = new TextEncoder().encode(sdp);
   if (hasCompression()) {
     try {
@@ -45,7 +50,10 @@ export async function encodeSdp(prefix: string, sdp: string): Promise<string> {
 export class CodeError extends Error {}
 
 export async function decodeSdp(expectedPrefix: string, code: string): Promise<string> {
-  const text = code.replace(/\s+/g, '');
+  let text = code.replace(/\s+/g, '');
+  // 参加URLをそのまま貼り付けた場合はコード部分だけを使う
+  const hashAt = text.indexOf('#j=');
+  if (hashAt >= 0) text = decodeURIComponent(text.slice(hashAt + 3));
   if (!text.startsWith(expectedPrefix)) {
     const other = expectedPrefix === OFFER_PREFIX ? ANSWER_PREFIX : OFFER_PREFIX;
     if (text.startsWith(other)) {
@@ -61,6 +69,13 @@ export async function decodeSdp(expectedPrefix: string, code: string): Promise<s
     bytes = fromBase64Url(text.slice(expectedPrefix.length + 1));
   } catch {
     throw new CodeError('コードが壊れています（途中で切れていないか確認してください）。');
+  }
+  if (mark === COMPACT_MARK) {
+    try {
+      return expandSdp(bytes);
+    } catch {
+      throw new CodeError('コードが壊れています（途中で切れていないか確認してください）。');
+    }
   }
   if (mark === DEFLATE_MARK) {
     if (!hasCompression()) throw new CodeError('このブラウザは圧縮コードに対応していません。');
