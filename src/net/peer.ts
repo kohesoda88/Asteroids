@@ -7,6 +7,8 @@ const STUN_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', '
 const ICE_GATHER_TIMEOUT_MS = 8000;
 const PING_INTERVAL_MS = 1000;
 const PEER_TIMEOUT_MS = 8000;
+// ゲストは返答コードを渡してからホストが読み込むまで時間がかかるため、その間は失敗扱いにしない
+const ANSWER_WAIT_MS = 180000;
 
 /**
  * ICE 候補の収集を待つ。「完了」にならないブラウザや回線があるため、
@@ -110,6 +112,9 @@ export class PeerLink {
   private lastStats = '';
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private failing = false;
+  private everOpened = false;
+  private waitingForHost = false; // ゲスト：ホストが返答を読み込むのを待っている
+  private waitTimer: ReturnType<typeof setTimeout> | null = null;
 
   private note(s: string): void {
     this.log.push(`+${((performance.now() - this.t0) / 1000).toFixed(1)}s ${s}`);
@@ -161,7 +166,12 @@ export class PeerLink {
       const ev = e as RTCPeerConnectionIceErrorEvent;
       this.note(`候補エラー ${ev.errorCode} ${ev.url ?? ''}`);
     });
-    this.rel.addEventListener('open', () => this.note('DataChannel open'));
+    this.rel.addEventListener('open', () => {
+      this.note('DataChannel open');
+      this.everOpened = true;
+      this.waitingForHost = false;
+      if (this.waitTimer) clearTimeout(this.waitTimer);
+    });
   }
 
   /** 接続状態を表示用の文字列にする */
@@ -175,7 +185,9 @@ export class PeerLink {
       failed: '失敗',
       closed: '終了',
     };
-    return map[this.pc.iceConnectionState] ?? this.pc.iceConnectionState;
+    const st = this.pc.iceConnectionState;
+    if (this.waitingForHost && !this.everOpened && (st === 'failed' || st === 'disconnected' || st === 'checking')) return 'ホストの読み取り待ち';
+    return map[st] ?? st;
   }
 
   /** 接続できなかったときの原因の見立て */
@@ -219,8 +231,14 @@ export class PeerLink {
   }
 
   /** 失敗時：閉じる前に経路確認の統計を記録する */
-  private async fail(): Promise<void> {
+  private async fail(force = false): Promise<void> {
     if (this.failing || this.closed) return;
+    // ホストが返答を読み込む前にゲスト側の確認が失敗しても、ホストからの確認で立ち直れるので待つ
+    if (!force && this.waitingForHost && !this.everOpened) {
+      this.note('ホスト待ちのため継続');
+      void this.snapshotStats();
+      return;
+    }
     this.failing = true;
     try {
       this.statsText = `失敗時: ${await this.summarizeStats()}`;
@@ -271,6 +289,7 @@ export class PeerLink {
     this.closed = true;
     if (this.pingTimer) clearInterval(this.pingTimer);
     if (this.statsTimer) clearInterval(this.statsTimer);
+    if (this.waitTimer) clearTimeout(this.waitTimer);
     try {
       this.pc.close();
     } catch {
@@ -305,6 +324,11 @@ export class PeerLink {
     await this.pc.setLocalDescription(await this.pc.createAnswer());
     await waitIceGathering(this.pc, this.useStun);
     this.localCandidates = summarizeCandidates(this.pc.localDescription!.sdp);
+    this.waitingForHost = true;
+    this.waitTimer = setTimeout(() => {
+      this.note('ホストからの接続を待ちきれず終了');
+      void this.fail(true);
+    }, ANSWER_WAIT_MS);
     return encodeSdp(ANSWER_PREFIX, this.pc.localDescription!.sdp);
   }
 }

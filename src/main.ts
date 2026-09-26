@@ -525,7 +525,7 @@ function renderGuest(): void {
         <div class="label sub">読み取れないときは、この返答コードをホストに送る</div>
         <textarea readonly class="answer">${esc(g.answerCode)}</textarea>
         <div class="buttons inline"><button class="act-copy">コピー</button>${canShare ? '<button class="act-share">共有</button>' : ''}</div>
-        <p class="sub">ホストがQRを読み取るか返答コードを貼り付けると接続されます。接続を待っています…（最大30秒ほど）</p>${diag}`;
+        <p class="sub">ホストがQRを読み取るか返答コードを貼り付けると接続されます。接続を待っています…（最大3分）</p>${diag}`;
       body.querySelector('.act-copy')!.addEventListener('click', (e) =>
         copyText(body.querySelector<HTMLTextAreaElement>('.answer')!, e.currentTarget as HTMLButtonElement),
       );
