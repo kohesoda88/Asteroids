@@ -18,7 +18,7 @@ export const IN_HYPER = 16;
 
 // 船
 export const SHIP_RADIUS = 11;
-export const SHIP_TURN_SPEED = 4.6; // rad/s
+export const SHIP_TURN_SPEED = 1.55; // rad/s（約89°/秒。1周に約4秒）
 export const SHIP_THRUST = 420; // px/s^2
 export const SHIP_DRAG = 0.55; // 速度の指数減衰率 (1/s)
 export const SHIP_MAX_SPEED = 460;
