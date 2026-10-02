@@ -245,6 +245,54 @@ button.primary {
   margin: 6px 0;
 }
 
+/* 制限時間の選択（3つのボタン） */
+.duration {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 10px 0;
+}
+
+.duration legend {
+  float: left;
+  margin-right: 4px;
+  padding: 0;
+}
+
+.duration label {
+  cursor: pointer;
+}
+
+.duration input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.duration span {
+  display: inline-block;
+  min-width: 64px;
+  text-align: center;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #16203a;
+}
+
+.duration input:checked + span {
+  background: #0e5a6b;
+  border-color: #1590a8;
+  font-weight: bold;
+}
+
+.duration input:focus-visible + span {
+  outline: 2px solid var(--p1);
+  outline-offset: 2px;
+}
+
 .slot {
   border: 1px solid var(--line);
   border-radius: 8px;

@@ -301,6 +301,12 @@ function checkWebRtc(): boolean {
 }
 
 // ---------- ホスト ----------
+/** ロビーで選んだ制限時間（秒）。1分・3分・5分 */
+function selectedDuration(): number {
+  const checked = document.querySelector<HTMLInputElement>('input[name="duration"]:checked');
+  return Number(checked?.value ?? 180);
+}
+
 const slotRenderKey = new Map<number, string>();
 
 function showHostLobby(): void {
@@ -432,7 +438,7 @@ function openHost(): void {
   if (!checkWebRtc()) return;
   save('ast.name', playerName());
   host = new HostSession(playerName(), stunInput.checked);
-  host.durationSec = Number($<HTMLSelectElement>('duration').value);
+  host.durationSec = selectedDuration();
   host.onChange = () => {
     if (!$('screen-host').classList.contains('hidden')) renderHostSlots();
   };
@@ -443,7 +449,7 @@ function openHost(): void {
 function startHostGame(): void {
   if (!host) return;
   sfx.unlock();
-  host.durationSec = Number($<HTMLSelectElement>('duration').value);
+  host.durationSec = selectedDuration();
   const players = host.startGame();
   const names: string[] = [];
   for (const p of players) names[p.slot] = p.name;
@@ -570,7 +576,7 @@ $('btn-mute').addEventListener('click', () => {
 });
 $('duration').addEventListener('change', () => {
   if (host) {
-    host.durationSec = Number($<HTMLSelectElement>('duration').value);
+    host.durationSec = selectedDuration();
     host.broadcastLobby();
   }
 });

@@ -59,14 +59,12 @@
         <h2>部屋（ホスト）</h2>
         <p class="sub">ゲストごとに「招待コード」を作って送り、返ってきた「返答コード」を貼り付けてください。</p>
         <div class="row">
-          <label class="field">制限時間
-            <select id="duration">
-              <option value="60">1分</option>
-              <option value="120">2分</option>
-              <option value="180" selected>3分</option>
-              <option value="300">5分</option>
-            </select>
-          </label>
+          <fieldset class="duration" id="duration">
+            <legend>制限時間</legend>
+            <label><input type="radio" name="duration" value="60" /><span>1分</span></label>
+            <label><input type="radio" name="duration" value="180" checked /><span>3分</span></label>
+            <label><input type="radio" name="duration" value="300" /><span>5分</span></label>
+          </fieldset>
         </div>
         <div class="slot host-self"><span class="dot" style="--c: var(--p1)"></span><span id="host-self-name"></span>（あなた・ホスト）</div>
         <div id="host-slots"></div>
