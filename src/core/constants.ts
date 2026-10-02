@@ -14,7 +14,6 @@ export const IN_LEFT = 1;
 export const IN_RIGHT = 2;
 export const IN_THRUST = 4;
 export const IN_FIRE = 8;
-export const IN_HYPER = 16;
 
 // 船
 export const SHIP_RADIUS = 11;
@@ -26,8 +25,6 @@ export const SHIP_FIRE_COOLDOWN = 0.18;
 export const SHIP_MAX_BULLETS = 4;
 export const SHIP_RESPAWN_TIME = 2;
 export const SHIP_INVULN_TIME = 3;
-export const HYPER_COOLDOWN = 1.2;
-export const HYPER_FAIL_CHANCE = 0.1;
 
 // 弾
 export const BULLET_SPEED = 620;

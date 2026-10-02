@@ -56,7 +56,6 @@ function newShip(id: number): Ship {
     respawnTimer: 0,
     invulnTimer: C.SHIP_INVULN_TIME,
     fireCooldown: 0,
-    hyperCooldown: 0,
     thrusting: false,
     score: 0,
     lives: C.SOLO_LIVES,
@@ -262,7 +261,6 @@ function updateShip(state: GameState, ship: Ship, input: number, dt: number): vo
   }
   ship.invulnTimer = Math.max(0, ship.invulnTimer - dt);
   ship.fireCooldown = Math.max(0, ship.fireCooldown - dt);
-  ship.hyperCooldown = Math.max(0, ship.hyperCooldown - dt);
 
   if (input & C.IN_LEFT) ship.angle -= C.SHIP_TURN_SPEED * dt;
   if (input & C.IN_RIGHT) ship.angle += C.SHIP_TURN_SPEED * dt;
@@ -299,16 +297,6 @@ function updateShip(state: GameState, ship: Ship, input: number, dt: number): vo
       ship.fireCooldown = C.SHIP_FIRE_COOLDOWN;
       state.events.push({ k: 'fire', o: ship.id });
     }
-  }
-
-  if (input & C.IN_HYPER && ship.hyperCooldown <= 0) {
-    ship.hyperCooldown = C.HYPER_COOLDOWN;
-    state.events.push({ k: 'hyper', o: ship.id, x: ship.x, y: ship.y });
-    ship.x = randRange(state.rng, 0, C.WORLD_W);
-    ship.y = randRange(state.rng, 0, C.WORLD_H);
-    ship.vx = 0;
-    ship.vy = 0;
-    if (nextRandom(state.rng) < C.HYPER_FAIL_CHANCE && ship.invulnTimer <= 0) destroyShip(state, ship, -1);
   }
 }
 

@@ -13,7 +13,6 @@ export interface Ship {
   respawnTimer: number;
   invulnTimer: number;
   fireCooldown: number;
-  hyperCooldown: number;
   thrusting: boolean;
   score: number;
   lives: number; // ソロのみ使用
@@ -55,7 +54,6 @@ export interface Ufo {
 export type GameEvent =
   | { k: 'boom'; x: number; y: number; s: number; c: number } // s: 大きさ, c: 色（プレイヤー番号 / -1=小惑星 / -2=UFO）
   | { k: 'fire'; o: number }
-  | { k: 'hyper'; o: number; x: number; y: number }
   | { k: 'kill'; killer: number; victim: number }
   | { k: 'life'; o: number };
 

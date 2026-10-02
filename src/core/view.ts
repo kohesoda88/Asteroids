@@ -115,7 +115,7 @@ export function interpolateView(a: View, b: View, t: number): View {
     ...b,
     ships: lerpList(a.ships, b.ships, t, (p, n, o) => {
       o.a = lerpAngle(p.a, n.a, t);
-      // 復活・ハイパースペースなどの瞬間移動は補間しない
+      // 復活などの瞬間移動は補間しない
       if ((!p.alive && n.alive) || wrappedDist2(p.x, p.y, n.x, n.y) > 80 * 80) {
         o.x = n.x;
         o.y = n.y;

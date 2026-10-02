@@ -89,7 +89,6 @@ function playEvents(events: GameEvent[], localId: number): void {
   for (const e of events) {
     if (e.k === 'fire') sfx.fire(e.o === localId);
     else if (e.k === 'boom') sfx.boom(e.s);
-    else if (e.k === 'hyper') sfx.blip(180, 0.2);
     else if (e.k === 'life' && e.o === localId) sfx.blip(1200, 0.3);
   }
 }

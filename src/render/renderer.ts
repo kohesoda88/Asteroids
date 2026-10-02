@@ -91,11 +91,6 @@ export class Renderer {
           const life = 0.4 + Math.random() * 0.6;
           this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, max: life, color: colorOf(e.c) });
         }
-      } else if (e.k === 'hyper') {
-        for (let i = 0; i < 12; i++) {
-          const a = (i / 12) * Math.PI * 2;
-          this.particles.push({ x: e.x, y: e.y, vx: Math.cos(a) * 120, vy: Math.sin(a) * 120, life: 0.3, max: 0.3, color: colorOf(e.o) });
-        }
       }
     }
   }

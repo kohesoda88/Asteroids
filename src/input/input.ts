@@ -1,4 +1,4 @@
-import { IN_FIRE, IN_HYPER, IN_LEFT, IN_RIGHT, IN_THRUST } from '../core/constants';
+import { IN_FIRE, IN_LEFT, IN_RIGHT, IN_THRUST } from '../core/constants';
 
 const KEY_MAP: Record<string, number> = {
   ArrowLeft: IN_LEFT,
@@ -9,8 +9,6 @@ const KEY_MAP: Record<string, number> = {
   KeyW: IN_THRUST,
   Space: IN_FIRE,
   KeyJ: IN_FIRE,
-  // ↓ / S には何も割り当てない（誤ってハイパースペースしないように）
-  KeyH: IN_HYPER,
 };
 
 const HOLD_MS = 500; // この時間 fire ボタンを押し続けると連射ホールド
