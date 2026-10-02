@@ -9,8 +9,8 @@ const KEY_MAP: Record<string, number> = {
   KeyW: IN_THRUST,
   Space: IN_FIRE,
   KeyJ: IN_FIRE,
-  ArrowDown: IN_HYPER,
-  KeyS: IN_HYPER,
+  // ↓ / S には何も割り当てない（誤ってハイパースペースしないように）
+  KeyH: IN_HYPER,
 };
 
 const HOLD_MS = 500; // この時間 fire ボタンを押し続けると連射ホールド
